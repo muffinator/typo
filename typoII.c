@@ -77,7 +77,7 @@ ISR(TIMER0_COMPA_vect)
 	unsigned char temp = DDRB;
 	unsigned char ptemp = PORTB;
 	DDRB = 0x00;
-	PORTB = 0x00;
+	PORTB = 0xff;
 	pinput = PINB;
 	winput = invwave[slot];
 	DDRB = temp;
@@ -119,8 +119,7 @@ ISR(TIMER1_COMPB_vect)	//timer2 compare interrupt
 			OCR1A = 3270;			//press from a key hold)
 		}
 		hit++;						//increment hit so we dont' do this
-		if(hit >= HITSTOP){
-			if(uart_buffer_towrite > 0){
+		if((hit > HITSTOP)&& uart_buffer_towrite){
 				typeChar(uart_buffer[(uart_buffer_index - uart_buffer_towrite + UART_BUFFER_LEN) % UART_BUFFER_LEN]);
 				uart_buffer_towrite--;
 			}
