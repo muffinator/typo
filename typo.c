@@ -11,8 +11,12 @@
 #define UART_BUFFER_LEN 240
 #define OUTPUT_BUFFER_LEN 10
 
-volatile char type = 1;
+volatile char nexthit = 1;
 volatile unsigned char pinput, winput, slot, wave, pin, hit = HITSTOP;
+unsigned char wavetable[15]= 			//assigns the output pin to the 
+{0, 0, 11, 8, 7, 6, 5, 4, 3, 2, 1, 12, 10, 9, 13}; //correct timeslot
+unsigned char invwave[15]=
+{0, 10, 9, 8, 7, 6, 5, 4, 3, 13, 12, 2, 11, 14};
 
 void usartInit( unsigned int ubrr); 	//initialize USART
 
@@ -59,7 +63,7 @@ ISR(TIMER1_COMPA_vect)
 		{
 			DDRB &= ~pinshift;
 			PORTB &= ~pinshift;
-			type = 1;
+			nexthit = 1;
 		}
 	}
 	else
