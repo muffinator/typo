@@ -11,21 +11,61 @@
 #define UART_BUFFER_LEN 240
 #define OUTPUT_BUFFER_LEN 10
 
+volatile char type = 1;
+volatile unsigned char pinput, winput, slot, wave, pin, hit = HITSTOP;
+
 void usartInit( unsigned int ubrr); 	//initialize USART
 
 ISR(INT0_vect)
 {
-	if(PIND&0x04 == 0x00)
+	TCNT1 = 0;
+	TCNT0 = 0;
+	slot = 0;
+	OCR1A = 700;
+}
+
+ISR(TIMER0_COMPA_vect)
+{
+	unsigned char temp = DDRB;
+	unsigned char ptemp = PORTB;
+	DDRB = 0x00;
+	PORTB = 0x00;
+	pinput = PINB;
+	winput = invwave[slot];
+	DDRB = temp;
+	PORTB = ptemp;
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+	TCNT1 = 0;
+	TCNT0 = 0;
+	OCR1A = 820;
+	char pinshift = (1<<pin);
+	slot++;
+	if((slot == wave)
 	{
-		TCNT1 = 0;
-		TCNT0 = 0;
-		slot = 0;
-		
+		if(hit < HITSTOP))
+		{
+			DDRB |= pinshift;
+			PORTB &= ~pinshift;
+			if(hit == 1)
+			{
+				OCR1A = 3270;
+			}
+			hit++;
+		}
+		else
+		{
+			DDRB &= ~pinshift;
+			PORTB &= ~pinshift;
+			type = 1;
+		}
 	}
 	else
 	{
-		unsigned int pd = TCNT1;
-		OCR1A = pd;
+		DDRB &= ~pinshift;
+		PORTB &= ~pinshift;
 	}
 }
 
