@@ -13,12 +13,23 @@
 
 volatile char nexthit = 1;
 volatile unsigned char pinput, winput, slot, wave, pin, hit = HITSTOP;
+
+//----------------------buffer stuff -------------------------//
+volatile char uart_buffer[UART_BUFFER_LEN];
+volatile char output_buffer[OUTPUT_BUFFER_LEN];
+volatile unsigned int uart_buffer_towrite = 0;
+volatile unsigned int uart_buffer_index = 0;
+volatile unsigned char output_buffer_towrite = 0;
+volatile unsigned char output_buffer_index = 0;
+
+//----------------------wavetable stuff-------------------------//
 unsigned char wavetable[15]= 			//assigns the output pin to the 
 {0, 0, 11, 8, 7, 6, 5, 4, 3, 2, 1, 12, 10, 9, 13}; //correct timeslot
 unsigned char invwave[15]=
 {0, 10, 9, 8, 7, 6, 5, 4, 3, 13, 12, 2, 11, 14};
 
 void usartInit( unsigned int ubrr); 	//initialize USART
+void typeChar(const char ch);
 
 ISR(INT0_vect)
 {
@@ -71,6 +82,26 @@ ISR(TIMER1_COMPA_vect)
 		DDRB &= ~pinshift;
 		PORTB &= ~pinshift;
 	}
+	if(nexthit && uart_buffer_towrite > 0)
+	{
+		typeChar(uart_buffer[(uart_buffer_index + UART_BUFFER_LEN - uart_buffer_towrite) % UART_BUFFER_LEN]);
+		uart_buffer_towrite--;
+	}
+}
+
+ISR(USART_RX_vect)
+{
+	unsigned char data = UDR0;
+	if(uart_buffer_towrite < UART_BUFFER_LEN)
+	{
+		uart_buffer[uart_buffer_index] = data;
+		uart_buffer_towrite++;
+		uart_buffer_index++;
+		if(uart_buffer_index >= UART_BUFFER_LEN)
+		{
+			uart_buffer_index = 0;
+		}	
+	}
 }
 
 int main(void)
@@ -105,4 +136,13 @@ void usartInit(unsigned int ubrr)
 	UBRR0L = (unsigned char)ubrr;
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);	//Enable receiver and transmitter  
 	UCSR0C = (0<<USBS0)|(3<<UCSZ00);	// Set frame format: 8data, 1stop bit
+}
+
+void typeChar(const char ch)
+{
+	unsigned char letter = lookup[(int)ch];
+	unsigned char sig = ((letter&0xf0)>>4);
+	wave = wavetable[sig];
+	pin = (letter&0x07)+1;
+	hit = 1;
 }
