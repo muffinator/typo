@@ -7,12 +7,20 @@
 #define FOSC 1000000
 #define baud 4800
 #define myubrr FOSC/16/baud-1
-#define HITSTOP 20
+#define HITSTOP 10
 #define UART_BUFFER_LEN 240
 #define OUTPUT_BUFFER_LEN 10
 
-volatile char nexthit = 1;
-volatile unsigned char pinput, winput, slot, wave, pin, hit = HITSTOP;
+void usartInit( unsigned int ubrr); 	//initialize USART
+void typeChar(const char ch);
+
+volatile unsigned char nexthit = 1;
+volatile unsigned char pinput = 0;
+volatile unsigned int winput = 0;
+volatile unsigned char slot=0;  		//current timeslot (out of 14)
+volatile unsigned char hit = HITSTOP; 		//hit (type) counter
+volatile unsigned char wave = 1;  		//waveform number
+volatile unsigned char pin = 0;  		//output pin index
 
 //----------------------buffer stuff -------------------------//
 volatile char uart_buffer[UART_BUFFER_LEN];
@@ -28,8 +36,7 @@ unsigned char wavetable[15]= 			//assigns the output pin to the
 unsigned char invwave[15]=
 {0, 10, 9, 8, 7, 6, 5, 4, 3, 13, 12, 2, 11, 14};
 
-void usartInit( unsigned int ubrr); 	//initialize USART
-void typeChar(const char ch);
+
 
 ISR(INT0_vect)
 {
@@ -44,26 +51,34 @@ ISR(TIMER0_COMPA_vect)
 	unsigned char temp = DDRB;
 	unsigned char ptemp = PORTB;
 	DDRB = 0x00;
-	PORTB = 0x00;
+	PORTB = 0xff;
 	pinput = PINB;
 	winput = invwave[slot];
 	DDRB = temp;
 	PORTB = ptemp;
 }
 
-ISR(TIMER1_COMPA_vect)
+ISR(TIMER1_COMPB_vect)
 {
-	TCNT1 = 0;
-	TCNT0 = 0;
 	OCR1A = 820;
-	char pinshift = (1<<pin);
-	slot++;
-	if((slot == wave)
+	if(slot == 0)
 	{
-		if(hit < HITSTOP))
+		OCR1A = 720;	
+	}
+	unsigned char pinshift = (1<<(pin-1));
+	if(slot == wave)
+	{
+		if(hit < HITSTOP)
 		{
 			DDRB |= pinshift;
-			PORTB &= ~pinshift;
+			if(hit < (HITSTOP - 4))
+			{
+				PORTB &= ~pinshift;		//pull pin[pin] low
+			}
+			else
+			{
+				PORTB |= pinshift;
+			}
 			if(hit == 1)
 			{
 				OCR1A = 3270;
@@ -82,10 +97,21 @@ ISR(TIMER1_COMPA_vect)
 		DDRB &= ~pinshift;
 		PORTB &= ~pinshift;
 	}
-	if(nexthit && uart_buffer_towrite > 0)
+	if((nexthit == 1) && (uart_buffer_towrite > 0))
 	{
-		typeChar(uart_buffer[(uart_buffer_index + UART_BUFFER_LEN - uart_buffer_towrite) % UART_BUFFER_LEN]);
+		typeChar(uart_buffer[(uart_buffer_index - uart_buffer_towrite + UART_BUFFER_LEN) % UART_BUFFER_LEN]);
 		uart_buffer_towrite--;
+	}
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+	TCNT1 = 0;
+	TCNT0 = 0;
+	slot++;
+	if (slot > 14)		//if we've been counting too fast
+	{
+		slot = 0;		//just go back to timeslot 0
 	}
 }
 
@@ -106,14 +132,14 @@ ISR(USART_RX_vect)
 
 int main(void)
 {	
-	EICRA = (1<<ISC00); //set interrupt for falling edge
+	EICRA = (1<<ISC01); //set interrupt for falling edge
 	EIMSK = (1<<INT0);  //enable int0 interrupts
 	TCCR1A = 0x00;  	//no pinchange
 	TCCR1B = (1<<CS10) + (1<<WGM12); //1x prescaler + CTC output compare mode
 	TIMSK1 = (1<<OCIE1A) + (1<<OCIE1B); //enable output compare interrupt A
-	TIMSK0 = (1<<OCIE0A);
 	TCCR0A = 0x00;
 	TCCR0B = (1<<CS01);
+	TIMSK0 = (1<<OCIE0A);
 	OCR0A = 50;
 	OCR1A = 0xFFFE; 	
 	OCR1B = 0x0008;		
@@ -126,6 +152,7 @@ int main(void)
 	sei();				//enable interrupts
 	while(1)
 	{
+		//typeChar('h');
 	}
 }
 
@@ -145,4 +172,5 @@ void typeChar(const char ch)
 	wave = wavetable[sig];
 	pin = (letter&0x07)+1;
 	hit = 1;
+	nexthit=0;
 }

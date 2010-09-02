@@ -17,7 +17,7 @@ MCU = atmega168
 # MCU = atmega8
 
 # Target file name (without extension).
-TARGET = typoII
+TARGET = typo
 # Programming hardware: type avrdude -c ?
 # to get a full listing.
 AVRDUDE_PROGRAMMER = usbtiny             # official name of 

@@ -39,7 +39,6 @@ delay time (referenced to 1 = 0)
 void usartInit( unsigned int ubrr); 	//initialize USART
 void typeChar(const char ch); 			//type a charcter ch
 void type(const char* buffer); 			//type a whole buffer!
-void text(char in);						//"hello"
 void talkback(void);
 
 volatile unsigned char pinput = 0;
@@ -137,19 +136,6 @@ ISR(TIMER1_COMPB_vect)	//timer2 compare interrupt
 ISR(USART_RX_vect)
 {
 	unsigned char data = UDR0;
-	/*if(data == 0)
-	{
-		letter = 0;
-	}
-	else
-	{
-		line[ind]=data;
-		ind++;
-	}*/
-	//while (!( UCSR0A & (1<<UDRE0)));
-	/* Put data into buffer, sends the data */
-	//UDR0 = data;
-	//typeChar(data);
 	if(uart_buffer_towrite < UART_BUFFER_LEN){
 		uart_buffer[uart_buffer_index] = data;
 		uart_buffer_towrite++;
@@ -191,12 +177,12 @@ int main(void)
 		//type(line);
 		//typeBuffer(uart_buffer, uart_buffer_towrite);
 
-		talkback();
+		/*talkback();
 		if(output_buffer_towrite){
 			while(!( UCSR0A & (1<<UDRE0)));
 			UDR0 = output_buffer[(output_buffer_index - output_buffer_towrite + OUTPUT_BUFFER_LEN) % OUTPUT_BUFFER_LEN];
 			output_buffer_towrite--;
-		}
+		}*/
 	}
 }
 
@@ -244,7 +230,7 @@ void talkback(void)
 
 void type(const char* buffer)
 {
-	unsigned char x = 0;
+	/*unsigned char x = 0;
 	char ch = buffer[x];
 	while(ch != 0)
 	{
@@ -254,7 +240,7 @@ void type(const char* buffer)
 		ch = buffer[x];
 	}
 	typeChar('\r');
-	_delay_ms(500);
+	_delay_ms(500);*/
 }
 
 void typeChar(const char ch)
