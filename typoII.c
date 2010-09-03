@@ -65,10 +65,10 @@ unsigned char invwave[15]=
 
 ISR(INT0_vect)			//external interrupt 0 (falling edge)
 {
-		TCNT1 = 0;		//reset timer
-		TCNT0 = 0;
-		slot = 0;		//back in timeslot 0
-		OCR1A = 700;	//set compare register for 700 to compensate
+	TCNT1 = 0;		//reset timer
+	TCNT0 = 0;
+	slot = 0;		//back in timeslot 0
+	OCR1A = 700;	//set compare register for 700 to compensate
 }						//for interrupt time.
 
 ISR(TIMER0_COMPA_vect)

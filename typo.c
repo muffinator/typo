@@ -12,8 +12,11 @@
 #define OUTPUT_BUFFER_LEN 10
 
 void usartInit( unsigned int ubrr); 	//initialize USART
-void typeChar(const char ch);
+void parseChar(const char ch);
+void typeChar(const char letter);
+void talkback(void);
 
+unsigned char lastChar;
 volatile unsigned char nexthit = 1;
 volatile unsigned char pinput = 0;
 volatile unsigned int winput = 0;
@@ -21,6 +24,7 @@ volatile unsigned char slot=0;  		//current timeslot (out of 14)
 volatile unsigned char hit = HITSTOP; 		//hit (type) counter
 volatile unsigned char wave = 1;  		//waveform number
 volatile unsigned char pin = 0;  		//output pin index
+char caps = 0;
 
 //----------------------buffer stuff -------------------------//
 volatile char uart_buffer[UART_BUFFER_LEN];
@@ -71,7 +75,7 @@ ISR(TIMER1_COMPB_vect)
 		if(hit < HITSTOP)
 		{
 			DDRB |= pinshift;
-			if(hit < (HITSTOP - 4))
+			if(hit < (HITSTOP - 2))
 			{
 				PORTB &= ~pinshift;		//pull pin[pin] low
 			}
@@ -81,7 +85,7 @@ ISR(TIMER1_COMPB_vect)
 			}
 			if(hit == 1)
 			{
-				OCR1A = 3270;
+				OCR1A = 3670;
 			}
 			hit++;
 		}
@@ -96,11 +100,6 @@ ISR(TIMER1_COMPB_vect)
 	{
 		DDRB &= ~pinshift;
 		PORTB &= ~pinshift;
-	}
-	if((nexthit == 1) && (uart_buffer_towrite > 0))
-	{
-		typeChar(uart_buffer[(uart_buffer_index - uart_buffer_towrite + UART_BUFFER_LEN) % UART_BUFFER_LEN]);
-		uart_buffer_towrite--;
 	}
 }
 
@@ -152,7 +151,18 @@ int main(void)
 	sei();				//enable interrupts
 	while(1)
 	{
-		//typeChar('h');
+		talkback();
+		if(output_buffer_towrite)
+		{
+			while(!( UCSR0A & (1<<UDRE0)));
+			UDR0 = output_buffer[(output_buffer_index - output_buffer_towrite + OUTPUT_BUFFER_LEN) % OUTPUT_BUFFER_LEN];
+			output_buffer_towrite--;
+		}
+		if((nexthit == 1) && (uart_buffer_towrite > 0))
+		{
+			parseChar(uart_buffer[(uart_buffer_index - uart_buffer_towrite + UART_BUFFER_LEN) % UART_BUFFER_LEN]);
+			uart_buffer_towrite--;
+		}
 	}
 }
 
@@ -165,12 +175,76 @@ void usartInit(unsigned int ubrr)
 	UCSR0C = (0<<USBS0)|(3<<UCSZ00);	// Set frame format: 8data, 1stop bit
 }
 
-void typeChar(const char ch)
+void parseChar(const char ch)
 {
 	unsigned char letter = lookup[(int)ch];
+	if (letter&0x08)
+	{
+		if(caps == 0)
+		{	
+			typeChar(0b11010110); //caps lock
+			caps = 1;
+			while(nexthit == 0){}
+		}
+		typeChar(letter);
+	}
+	else
+	{
+		if(caps == 1)
+		{
+			typeChar(0b11000110); //shift (unlock)
+			caps = 0;
+			while(nexthit == 0){}
+		}
+		typeChar(letter);
+	}
+	
+}
+
+void typeChar(const char letter)
+{
 	unsigned char sig = ((letter&0xf0)>>4);
 	wave = wavetable[sig];
 	pin = (letter&0x07)+1;
 	hit = 1;
 	nexthit=0;
+}
+
+void talkback(void)
+{
+	static unsigned int pressCount = 0;
+	unsigned char in = 0;
+	unsigned char done = 0;
+	if(pinput == 0xff)
+	{
+		return;
+	}
+	while(pinput & 0x01){
+		pinput>>=1;
+		in++;
+	}
+	in |= (winput<<4);
+	for (done=127;done > 7; done--)
+	{
+		if (lookup[done] == in) break;
+	}
+	if((lastChar == done))
+	{
+		pressCount++;
+		if(pressCount == 1)
+		{
+			output_buffer[output_buffer_index] = lastChar;
+			output_buffer_index++;
+			if(output_buffer_index >= OUTPUT_BUFFER_LEN)
+				output_buffer_index = 0;
+			//output_buffer_index = output_buffer_index == OUTPUT_BUFFER_LEN ? 0 : output_buffer_index;
+			output_buffer_towrite++;
+		}
+	}
+	else
+	{
+		pressCount = 0;
+	}
+	lastChar = done;
+	pinput = 0xFF;
 }
